@@ -2,7 +2,7 @@ name: Build k3
 
 on:
   push:
-    branches: [master]
+    branches: [k3_19_07]
 
 jobs:
   build:
