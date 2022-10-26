@@ -1,0 +1,171 @@
+name: Build k3
+
+on:
+  push:
+    branches: [k3_22_03]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Setup the build environment
+        run: |
+          sudo apt -y update
+          sudo apt -y install build-essential clang flex g++ gawk gcc-multilib gettext \
+          git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev
+
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Download latest version of openwrt
+        run: |
+          git clone https://github.com/openwrt/openwrt.git
+          cd openwrt
+          git fetch --tags
+          git checkout v22.03.2
+
+      - name: Config K3
+        run: |
+          cd openwrt
+          sed -i 's/192.168.1.1/10.0.88.1/g' package/base-files/files/bin/config_generate
+
+      - name: Update feeds
+        run: |
+          cd openwrt
+          ./scripts/feeds update -a
+
+      - name: Install feeds
+        run: |
+          cd openwrt
+          ./scripts/feeds install -a
+
+      - name: Configure target and options
+        run: |
+          cd openwrt
+
+          cat >> .config << EOF
+          CONFIG_TARGET_bcm53xx=y
+          CONFIG_TARGET_bcm53xx_generic=y
+          CONFIG_TARGET_bcm53xx_generic_DEVICE_phicomm_k3=y
+          CONFIG_HTOP_LMSENSORS=y
+          CONFIG_LIBCURL_COOKIES=y
+          CONFIG_LIBCURL_FILE=y
+          CONFIG_LIBCURL_FTP=y
+          CONFIG_LIBCURL_HTTP=y
+          CONFIG_LIBCURL_MBEDTLS=y
+          CONFIG_LIBCURL_NGHTTP2=y
+          CONFIG_LIBCURL_NO_SMB="!"
+          CONFIG_LIBCURL_PROXY=y
+          CONFIG_LUCI_LANG_zh_Hans=y
+          CONFIG_OPENSSL_ENGINE=y
+          CONFIG_OPENSSL_PREFER_CHACHA_OVER_GCM=y
+          CONFIG_OPENSSL_WITH_ASM=y
+          CONFIG_OPENSSL_WITH_CHACHA_POLY1305=y
+          CONFIG_OPENSSL_WITH_CMS=y
+          CONFIG_OPENSSL_WITH_DEPRECATED=y
+          CONFIG_OPENSSL_WITH_ERROR_MESSAGES=y
+          CONFIG_OPENSSL_WITH_PSK=y
+          CONFIG_OPENSSL_WITH_SRP=y
+          CONFIG_OPENSSL_WITH_TLS13=y
+          CONFIG_PACKAGE_cgi-io=y
+          CONFIG_PACKAGE_curl=y
+          # CONFIG_PACKAGE_dnsmasq is not set
+          CONFIG_PACKAGE_dnsmasq-full=y
+          CONFIG_PACKAGE_dnsmasq_full_auth=y
+          CONFIG_PACKAGE_dnsmasq_full_conntrack=y
+          CONFIG_PACKAGE_dnsmasq_full_dhcp=y
+          CONFIG_PACKAGE_dnsmasq_full_dhcpv6=y
+          CONFIG_PACKAGE_dnsmasq_full_dnssec=y
+          CONFIG_PACKAGE_dnsmasq_full_ipset=y
+          CONFIG_PACKAGE_dnsmasq_full_noid=y
+          CONFIG_PACKAGE_dnsmasq_full_tftp=y
+          CONFIG_PACKAGE_htop=y
+          CONFIG_PACKAGE_https-dns-proxy=y
+          CONFIG_PACKAGE_kmod-ipt-core=y
+          CONFIG_PACKAGE_kmod-ipt-ipset=y
+          CONFIG_PACKAGE_kmod-nf-conntrack-netlink=y
+          CONFIG_PACKAGE_kmod-nf-ipt=y
+          CONFIG_PACKAGE_libcares=y
+          CONFIG_PACKAGE_libcurl=y
+          CONFIG_PACKAGE_libev=y
+          CONFIG_PACKAGE_libgmp=y
+          CONFIG_PACKAGE_libiwinfo-lua=y
+          CONFIG_PACKAGE_liblua=y
+          CONFIG_PACKAGE_liblucihttp=y
+          CONFIG_PACKAGE_liblucihttp-lua=y
+          CONFIG_PACKAGE_libmbedtls=y
+          CONFIG_PACKAGE_libncurses=y
+          CONFIG_PACKAGE_libnetfilter-conntrack=y
+          CONFIG_PACKAGE_libnettle=y
+          CONFIG_PACKAGE_libnfnetlink=y
+          CONFIG_PACKAGE_libnghttp2=y
+          CONFIG_PACKAGE_libopenssl=y
+          CONFIG_PACKAGE_libpcre=y
+          CONFIG_PACKAGE_librt=y
+          CONFIG_PACKAGE_libubus-lua=y
+          CONFIG_PACKAGE_lua=y
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-app-firewall=y
+          CONFIG_PACKAGE_luci-app-https-dns-proxy=y
+          CONFIG_PACKAGE_luci-app-opkg=y
+          CONFIG_PACKAGE_luci-base=y
+          CONFIG_PACKAGE_luci-compat=y
+          CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-https-dns-proxy-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-opkg-zh-cn=y
+          CONFIG_PACKAGE_luci-lib-base=y
+          CONFIG_PACKAGE_luci-lib-ip=y
+          CONFIG_PACKAGE_luci-lib-jsonc=y
+          CONFIG_PACKAGE_luci-lib-nixio=y
+          CONFIG_PACKAGE_luci-mod-admin-full=y
+          CONFIG_PACKAGE_luci-mod-network=y
+          CONFIG_PACKAGE_luci-mod-status=y
+          CONFIG_PACKAGE_luci-mod-system=y
+          CONFIG_PACKAGE_luci-proto-ipv6=y
+          CONFIG_PACKAGE_luci-proto-ppp=y
+          CONFIG_PACKAGE_luci-theme-bootstrap=y
+          CONFIG_PACKAGE_rpcd=y
+          CONFIG_PACKAGE_rpcd-mod-file=y
+          CONFIG_PACKAGE_rpcd-mod-iwinfo=y
+          CONFIG_PACKAGE_rpcd-mod-luci=y
+          CONFIG_PACKAGE_rpcd-mod-rrdns=y
+          CONFIG_PACKAGE_terminfo=y
+          CONFIG_PACKAGE_uhttpd=y
+          CONFIG_PACKAGE_uhttpd-mod-ubus=y
+          CONFIG_PACKAGE_vim=y
+          CONFIG_PACKAGE_wget-ssl=y
+          CONFIG_PACKAGE_zlib=y
+          CONFIG_PCRE_JIT_ENABLED=y
+          EOF
+
+          make defconfig
+
+      - name: Make download
+        run: |
+          cd openwrt
+          make download -j1 V=sc
+
+      - name: Build image
+        run: |
+          cd openwrt
+          echo -e "$(nproc) thread build."
+          make -j$(nproc) V=sc
+
+      - name: Extract firmware
+        if: ${{ success() }}
+        run: |
+          device=$(grep -o '^CONFIG_TARGET.*DEVICE.*=y' openwrt/.config | sed -r 's/.*DEVICE_(.*)=y/\1/')
+          firmware=$device-$(date +"%Y%m%d")".trx"
+          manifest=$device-$(date +"%Y%m%d")".manifest"
+          mkdir firmware
+          find ./openwrt/bin/targets/ -name "*${device}*.trx" | xargs -i cp -f {} ./firmware/$firmware
+          find ./openwrt/bin/targets/ -name "*${device}*.manifest" | xargs -i cp -f {} ./firmware/$manifest
+
+      - name: Upload firmware
+        if: ${{ success() }}
+        uses: actions/upload-artifact@master
+        with:
+          name: k3_v22.03.2
+          path: firmware
