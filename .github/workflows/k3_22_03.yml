@@ -23,7 +23,7 @@ jobs:
           git clone https://github.com/openwrt/openwrt.git
           cd openwrt
           git fetch --tags
-          git checkout v22.03.2
+          git checkout v22.03.3
 
       - name: Config K3
         run: |
@@ -167,5 +167,5 @@ jobs:
         if: ${{ success() }}
         uses: actions/upload-artifact@master
         with:
-          name: k3_v22.03.2
+          name: k3_v22.03.3
           path: firmware
