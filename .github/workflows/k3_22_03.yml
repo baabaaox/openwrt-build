@@ -15,12 +15,9 @@ jobs:
           sudo apt -y install build-essential clang flex g++ gawk gcc-multilib gettext \
           git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev wget
 
-      - name: Check out code
-        uses: actions/checkout@v3
-
       - name: Download latest release of openwrt
         run: |
-          wget -c https://github.com/openwrt/openwrt/archive/refs/tags/v22.03.3.zip openwrt.zip
+          wget -q -O openwrt.zip https://github.com/openwrt/openwrt/archive/refs/tags/v22.03.3.zip
           unzip -qq openwrt.zip && rm openwrt.zip && mv openwrt-22.03.3 openwrt
 
       - name: Config K3
